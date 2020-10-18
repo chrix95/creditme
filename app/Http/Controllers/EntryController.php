@@ -184,4 +184,19 @@ class EntryController extends Controller
         }
     }
 
+    public function getBundles($networkID) {
+        $bundles = \App\DataBundle::where('service_id', $networkID)->orderBy('amount', 'asc')->get();
+        if(count($bundles) > 0) {
+            return response()->json([
+                'status'    =>  ture,
+                'message'   =>  'Successful',
+                'bundles'   =>  $bundles
+            ]);
+        }
+        return response()->json([
+            'status'    =>  false,
+            'message'   =>  "Unknown network ID"
+        ]);
+    }
+
 }

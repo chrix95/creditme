@@ -47,6 +47,12 @@ Route::prefix('v1')->group(function() {
             ]);
             Route::get('process-airtime-transactions', 'Cronjob\ServicesVendController@processAirtimeTransactions');
         });
+        Route::prefix('data')->group(function() {
+            Route::get('bundles/{networkID}', [
+                'uses'  =>  'EntryController@getBundles',
+                'as'    =>  'data.entry.bundles'
+            ]);
+        });
     });
     // hashing testing
     Route::get('/hash/{apistring}', 'UtilityController@verifyAPIPasscode');
