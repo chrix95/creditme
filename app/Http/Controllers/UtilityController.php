@@ -238,6 +238,62 @@ class UtilityController extends Controller
         return $verified;
     }
 
+    public function verifyPaystackPayment($paymentReference, $amount, $mode = 1) {
+        $verified = 0;
+        $result = array();
+        $key = env('PAYSTACK_TEST_PRIVATE_KEY');
+        if($mode == 2) {
+            $key = env('PAYSTACK_LIVE_PRIVATE_KEY');
+        }
+        $url = 'https://api.paystack.co/transaction/verify/' . $paymentReference;
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt(
+            $ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $key]
+        );
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+        $request = curl_exec($ch);
+        if(curl_errno($ch)) {
+            $verified = curl_errno($ch);
+            Log::info('cURL error occured while trying to verify payment.');
+            Log::error(curl_error($ch));
+        } else {
+            if ($request) {
+                $result = json_decode($request, true);
+                Log::info('result from verifying payment');
+                Log::info($result);
+                if($result["status"] == true) {
+                    if($result["data"] && $result["data"]["status"] == "success") {
+                        // at this point, payment has been verified.
+                        // launch an event on a queue to send email of receipt to user.
+                        Log::info('Payment successfully verified.');
+                        $real_amount_paid = $result['data']['amount'] / 100;
+                        if($amount == $real_amount_paid) {
+                            $verified = 100;
+                        } else {
+                            // amount paid isn't equal to the expected amount
+                            $verified = 419;
+                        }
+                    } else {
+                        // transaction not found
+                        $verified = 404;
+                    }
+                }  else {
+                    // $resp['msg'] = 'Transaction not found!';
+                    $verified = 404;
+                }
+            } else {
+                // $resp['msg'] = 'Unable to verify transaction!';
+                $verified = 503;
+            }
+        }
+        curl_close($ch);
+
+        return $verified;
+    }
+
     // all irecharge generations
     public function purifyJSON($json) {
         if(substr($json, 0, 3) == pack("CCC", 0xEF, 0xBB, 0xBF)) {
@@ -361,7 +417,7 @@ class UtilityController extends Controller
         if($mode == 2) {
             $vendorURL = env('VENDOR_LIVE_URL');
         }
-        $url = $vendorURL . "/vend_airtime.php?vendor_code=".env('VENDOR_CODE')."&vtu_network=".$serviceName."&vtu_amount=".$amount."&vtu_number=".$phone."&vtu_email=info@cardcom.ng&reference_id=".$transactionID."&hash=".$hash;
+        $url = $vendorURL . "/vend_airtime.php?vendor_code=".env('VENDOR_CODE')."&vtu_network=".$serviceName."&vtu_amount=".$amount."&vtu_number=".$phone."&vtu_email=engchris95@gmail.com&reference_id=".$transactionID."&hash=".$hash;
         Log::info('vend url');
         Log::info($url);
         try {
@@ -426,20 +482,20 @@ class UtilityController extends Controller
                         \App\Api::where('id', 1)->update([
                             'balance'   =>  $result['wallet_balance']
                         ]);
-                        try {
-                            \Mail::to($email)->send(new \App\Mail\AirtimeVendMail($airtimeTransaction));
-                            Log::info('Email sent');
-                        } catch(\Exception $ex) {
-                            // mail was probably not sent to the customer.
-                            // log this as a failed e-mail to failed email transaction table.
-                            $failedEmailData = array(
-                                'transaction_type'  => 'airtime',
-                                'transaction_id'    => $airtimeTransaction->id,
-                                'trials'            => 0
-                            );
-                            Log::info($ex);
-                            \App\FailedEmail::create($failedEmailData);
-                        }
+                        // try {
+                        //     \Mail::to($email)->send(new \App\Mail\AirtimeVendMail($airtimeTransaction));
+                        //     Log::info('Email sent');
+                        // } catch(\Exception $ex) {
+                        //     // mail was probably not sent to the customer.
+                        //     // log this as a failed e-mail to failed email transaction table.
+                        //     $failedEmailData = array(
+                        //         'transaction_type'  => 'airtime',
+                        //         'transaction_id'    => $airtimeTransaction->id,
+                        //         'trials'            => 0
+                        //     );
+                        //     Log::info($ex);
+                        //     \App\FailedEmail::create($failedEmailData);
+                        // }
                     } else {
                         $status['status'] = $result['status'];
                         $status['msg'] = $result['message'];
@@ -601,7 +657,7 @@ class UtilityController extends Controller
             $vendorURL = env('VENDOR_LIVE_URL');
         }
         $url = $vendorURL . "/vend_power.php?";
-        $url .= "vendor_code=" . urlencode(env('VENDOR_CODE')) . "&meter=" . urlencode($meterNo) . "&reference_id=" . urlencode($referenceID) . "&response_format=" . urlencode($respFormat) . "&disco=" . urlencode($disco) . "&access_token=" . urlencode($accessToken) . "&amount=" . urlencode($amount) . "&phone=" . urlencode($phone) . "&email=info@cardcom.ng&hash=" . urlencode($hash);
+        $url .= "vendor_code=" . urlencode(env('VENDOR_CODE')) . "&meter=" . urlencode($meterNo) . "&reference_id=" . urlencode($referenceID) . "&response_format=" . urlencode($respFormat) . "&disco=" . urlencode($disco) . "&access_token=" . urlencode($accessToken) . "&amount=" . urlencode($amount) . "&phone=" . urlencode($phone) . "&email=engchris95@gmail.com&hash=" . urlencode($hash);
 
         Log::info('Veding power using url: ');
         Log::info($url);
@@ -837,10 +893,10 @@ class UtilityController extends Controller
         }
         $url = $vendorURL . "/vend_tv.php";
         if($startimesAmount === 0) {
-            $url .= "?vendor_code=".urlencode(env('VENDOR_CODE'))."&smartcard_number=".urlencode($tvTransaction->smartcard_num)."&reference_id=".urlencode(substr($tvTransaction->transaction_id, -12))."&response_format=".urlencode($respFormat)."&tv_network=".urlencode($tvProvider)."&access_token=".urlencode($tvTransaction->access_token)."&service_code=".urlencode($serviceCode)."&phone=".urlencode($tvTransaction->phone)."&email=info@cardcom.ng&hash=".urlencode($hash);
+            $url .= "?vendor_code=".urlencode(env('VENDOR_CODE'))."&smartcard_number=".urlencode($tvTransaction->smartcard_num)."&reference_id=".urlencode(substr($tvTransaction->transaction_id, -12))."&response_format=".urlencode($respFormat)."&tv_network=".urlencode($tvProvider)."&access_token=".urlencode($tvTransaction->access_token)."&service_code=".urlencode($serviceCode)."&phone=".urlencode($tvTransaction->phone)."&email=engchris95@gmail.com&hash=".urlencode($hash);
         } else {
             Log::info('using startimes URL');
-            $url .= "?vendor_code=".urlencode(env('VENDOR_CODE'))."&smartcard_number=".urlencode($tvTransaction->smartcard_num)."&reference_id=".urlencode(substr($tvTransaction->transaction_id, -12))."&response_format=".urlencode($respFormat)."&tv_network=".urlencode($tvProvider)."&access_token=".urlencode($tvTransaction->access_token)."&service_code=".urlencode($serviceCode)."&startimes_amount=".urlencode($startimesAmount)."&phone=".urlencode($tvTransaction->phone)."&email=info@cardcom.ng&hash=".urlencode($hash);
+            $url .= "?vendor_code=".urlencode(env('VENDOR_CODE'))."&smartcard_number=".urlencode($tvTransaction->smartcard_num)."&reference_id=".urlencode(substr($tvTransaction->transaction_id, -12))."&response_format=".urlencode($respFormat)."&tv_network=".urlencode($tvProvider)."&access_token=".urlencode($tvTransaction->access_token)."&service_code=".urlencode($serviceCode)."&startimes_amount=".urlencode($startimesAmount)."&phone=".urlencode($tvTransaction->phone)."&email=engchris95@gmail.com&hash=".urlencode($hash);
         }
         Log::info('Vend request string');
         Log::info($url);
@@ -1097,7 +1153,7 @@ class UtilityController extends Controller
         if($mode == 2) {
             $vendorURL = env('VENDOR_LIVE_URL');
         }
-        $url = $vendorURL . "/vend_data.php?vendor_code=".env('VENDOR_CODE')."&vtu_network=".$serviceName."&vtu_data=".$code."&vtu_number=".$phone."&vtu_email=info@cardcom.ng&reference_id=".$transactionID."&hash=".$hash;
+        $url = $vendorURL . "/vend_data.php?vendor_code=".env('VENDOR_CODE')."&vtu_network=".$serviceName."&vtu_data=".$code."&vtu_number=".$phone."&vtu_email=engchris95@gmail.com&reference_id=".$transactionID."&hash=".$hash;
         $ch = curl_init();
         curl_setopt_array($ch, array(
             CURLOPT_URL => $url,

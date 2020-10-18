@@ -38,3 +38,8 @@ Route::get('/voucher', 'HomeController@voucher')->name('voucher')->middleware('v
 Route::get('data-bundles', 'Cronjob\UpdateBundles@loadBundle');
 
 Route::get('tv-bundles', 'Cronjob\UpdateBundles@loadTVBundle');
+
+Route::get('testing', function() {
+    $transaction = \App\EntryPoint::where('reference', '16030301891821')->first();
+    return $transaction->airtimeTransaction;
+});

@@ -17,7 +17,25 @@ class AirtimeTransaction extends Model
     const UPDATED_AT = 'date_modified';
 
     protected $fillable = [
-        'transaction_id', 'network', 'status', 'phone', 'email', 'amount', 'amount_paid', 'commission', 'payment_method', 'payment_ref', 'platform', 'user_id', 'service_id'
+        'convenience_fee', 'entry_points_id', 'transaction_id', 'network', 'status', 'phone', 'email', 'amount', 'amount_paid', 'commission', 'payment_method', 'payment_ref', 'platform', 'user_id', 'service_id'
+    ];
+
+    protected $hidden = [
+        'id',
+        'transaction_id',
+        'amount_paid',
+        'commission',
+        'status',
+        'entry_points_id',
+        'email',
+        'payment_method',
+        'payment_ref',
+        'platform',
+        'date_created',
+        'date_modified',
+        'user_id',
+        'service_id',
+        'service'
     ];
 
     protected $with = [

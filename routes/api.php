@@ -34,6 +34,20 @@ Route::prefix('v1')->group(function() {
         }
         return "Done";
     });
+    // Entry route for all request
+    Route::prefix('entry')->group(function() {
+        Route::prefix('airtime')->group(function() {
+            Route::post('verify', [
+                'uses'  =>  'EntryController@airtimeEntry',
+                'as'    =>  'airtime.entry.register'
+            ]);
+            Route::post('vend', [
+                'uses'  =>  'EntryController@airtimeVend',
+                'as'    =>  'airtime.entry.vend'
+            ]);
+            Route::get('process-airtime-transactions', 'Cronjob\ServicesVendController@processAirtimeTransactions');
+        });
+    });
     // hashing testing
     Route::get('/hash/{apistring}', 'UtilityController@verifyAPIPasscode');
     // airtime request
