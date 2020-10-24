@@ -56,6 +56,11 @@ Route::prefix('v1')->group(function() {
                 'uses'  =>  'EntryController@dataEntry',
                 'as'    =>  'data.entry.register'
             ]);
+            Route::post('vend', [
+                'uses'  =>  'EntryController@dataVend',
+                'as'    =>  'data.entry.vend'
+            ]);
+            Route::get('process-data-transactions', 'Cronjob\ServicesVendController@processDataTransactions');
         });
     });
     // hashing testing

@@ -1218,19 +1218,19 @@ class UtilityController extends Controller
                     \App\Api::where('id', 1)->update([
                         'balance'   =>  $result['wallet_balance']
                     ]);
-                    try {
-                        \Mail::to($email)->send(new \App\Mail\DataVendMail($dataTransaction));
-                    } catch(\Exception $ex) {
-                        // mail was probably not sent to the customer.
-                        // log this as a failed e-mail to failed email transaction table.
-                        $failedEmailData = array(
-                            'transaction_type'  => 'data',
-                            'transaction_id'    => $dataTransaction->id,
-                            'trials'            => 0
-                        );
-                        \Log::info($ex);
-                        \App\FailedEmail::create($failedEmailData);
-                    }
+                    // try {
+                    //     \Mail::to($email)->send(new \App\Mail\DataVendMail($dataTransaction));
+                    // } catch(\Exception $ex) {
+                    //     // mail was probably not sent to the customer.
+                    //     // log this as a failed e-mail to failed email transaction table.
+                    //     $failedEmailData = array(
+                    //         'transaction_type'  => 'data',
+                    //         'transaction_id'    => $dataTransaction->id,
+                    //         'trials'            => 0
+                    //     );
+                    //     \Log::info($ex);
+                    //     \App\FailedEmail::create($failedEmailData);
+                    // }
                 } else {
                     $status['status'] = $result['status'];
                     $status['msg'] = $result['message'];

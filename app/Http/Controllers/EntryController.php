@@ -166,7 +166,7 @@ class EntryController extends Controller
                     $transaction->status = $response;
                     $transaction->save();
                     return response()->json([
-                        'status'    =>  false,
+                        'status'    =>  true,
                         'message'   =>  'Payment verified successfully. Transaction will be completed shortly.',
                         'transaction_reference' => $transaction->reference,
                         'total_amount' => $transaction->total_amount,
@@ -281,6 +281,94 @@ class EntryController extends Controller
             'convenience_fee'   =>  number_format($convenience_fee, 2),
             'total_amount'   =>  $transaction_sum
         ]);
+    }
+
+    public function dataVend (Request $request) {
+        $data = array(
+            'transaction_reference' =>  $request->transaction_reference,
+            'payment_reference'     =>  $request->payment_reference,
+            'payment_method'        =>  $request->payment_method,
+            'passcode'              =>  $request->passcode
+        );
+
+        $validator = \Validator::make($data, [
+            'transaction_reference' =>  'required',
+            'payment_reference'     =>  'required',
+            'payment_method'        =>  'required|string',
+            'passcode'              =>  'required|string'
+        ]);
+
+        if($validator->fails()) {
+            return response()->json([
+                'status'    =>  false,
+                'message'   =>  $validator->errors()->first()
+            ]);
+        }
+
+        if ($this->utility->verifyAPIPasscode($data['transaction_reference']) !== $data['passcode']) {
+            return response()->json([
+                'status'    =>  false,
+                'message'   =>  'Unknown request sent'
+            ]);
+        }
+
+        $transaction = EntryPoint::where('reference', $data['transaction_reference'])->where('service', 'data')->first();
+
+        if ($transaction) {
+            $transaction->payment_reference = $data['payment_reference'];
+            $transaction->payment_method = $data['payment_method'];
+            if ($data['payment_method'] == 'paystack') {
+                $amountToVerify = $transaction->total_amount + $transaction->convenience_fee;
+                $verified = $this->utility->verifyPaystackPayment($data['payment_reference'], $amountToVerify);
+                if ($verified == 0 || $verified == 503) {
+                    $response = 'Unable to verify transaction! Kindly contact support.';
+                    $transaction->status = $response;
+                    $transaction->save();
+                    return response()->json([
+                        'status'    =>  false,
+                        'message'   =>  $response
+                    ]);
+                } else if ($verified == 404) {
+                    $response = 'Payment transaction reference not found.';
+                    $transaction->status = $response;
+                    $transaction->save();
+                    return response()->json([
+                        'status'    =>  false,
+                        'message'   =>  $response
+                    ]);
+                } else if ($verified == 419) {
+                    $response = 'Transaction Amount paid mismatch. Kindly contact support';
+                    $transaction->status = $response;
+                    $transaction->save();
+                    return response()->json([
+                        'status'    =>  false,
+                        'message'   =>   $response
+                    ]);
+                } else {
+                    $response = 'Payment verified';
+                    $transaction->status = $response;
+                    $transaction->save();
+                    return response()->json([
+                        'status'    =>  true,
+                        'message'   =>  'Payment verified successfully. Transaction will be completed shortly.',
+                        'transaction_reference' => $transaction->reference,
+                        'total_amount' => $transaction->total_amount,
+                        'convenience_fee' => $transaction->convenience_fee,
+                        'sub_transaction' => $transaction->airtimeTransaction
+                    ]);
+                }
+            } else {
+                return response()->json([
+                    'status'    =>  false,
+                    'message'   =>  'Invalid payment option selected'
+                ]);
+            }
+        } else {
+            return response()->json([
+                'status'    =>  false,
+                'message'   =>  'Invalid transaction reference'
+            ]);
+        }
     }
 
 }
