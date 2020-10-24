@@ -16,84 +16,64 @@ class DataController extends Controller
         $this->user = $user;
     }
 
-    public function registerAttempt(Request $request) {
-        $resp = array();
-        $status = '00';
-        $field_name = 'data';
+    public function registerAttempt($payload) {
         $data = array(
-            'phone'             =>  $request->phone,
-            'email'             =>  $request->email,
-            'service_id'        =>  $request->service_id,
-            'data_bundles_id'   =>  $request->data_bundles_id,
-            'user_id'           =>  $request->user_id,
-            'platform'          =>  $request->platform,
-            'passcode'          =>  $request->passcode
+            'phone'             =>  $payload['phone'],
+            'email'             =>  $payload['email'] ?? env('DEFAULT_EMAIL_ADDRESS'),
+            'service_id'        =>  $payload['service_id'],
+            'data_bundles_id'   =>  $payload['data_bundles_id'],
+            'user_id'           =>  $payload['user_id'] ?? NULL,
+            'platform'          =>  $payload['platform'],
+            'entry_points_id'   =>  $payload['reference']
         );
 
         $validator = \Validator::make($data, [
             'phone'             =>  'required|digits:11',
-            'email'             =>  'email',
+            'email'             =>  'string|nullable',
             'service_id'        =>  'required|numeric',
-            'data_bundles_id'   =>  'required|numeric',
-            'platform'          =>  'required|string',
-            'passcode'          =>  'required|string'
+            'data_bundles_id'   =>  'required|numeric'
         ]);
 
         if($validator->fails()) {
-            $status = '05';
-            return $this->utility->response($status, 'error', $validator->errors());
+            return [
+                'status'    => false,
+                'message'   => $validator->errors()->first()
+            ];
         }
 
-        if ($this->utility->verifyAPIPasscode($data['phone']) !== $request->passcode) {
-            $status = '01';
+        $servicePackage = \App\DataBundle::where('service_id', $data['service_id'])->where('id', $data['data_bundles_id'])->first();
+        if (!$servicePackage) {
+            return [
+                'status'    =>  false,
+                'message'   =>  'Invalid service ID/bundle ID match provided'
+            ];
         } else {
-            $servicePackage = \App\DataBundle::where('service_id', $data['service_id'])->first();
-            if (!$servicePackage) {
-                $status = '16';
-            } else {
-                $dataPackage = \App\DataBundle::find($data['data_bundles_id']);
-                if (!$dataPackage) {            
-                    $status = '19';
-                } else {
-                    $status = '00';
-                    $data['transaction_id'] = $this->utility->generateTransactionID(2);
-                    $data['status'] = 0;
-                    $data['commission'] = 0;
-                    $data['payment_method'] = '';
-                    $data['amount'] = $dataPackage->amount;
-                    $data['payment_ref'] = 'Awaiting payment';
-                    $data['amount_paid'] = 0.00;
-                    $dataPurchase = \App\DataTransaction::create($data);
-                    // if ($data['service_id'] == '8') {
-                    //     $smileInfo = $this->utility->verifySmileInfo($data['phone'], env('MODE'));
-                    //     if ($smileInfo['status'] == 1) {
-                            
-                    //     } else {
-
-                    //     }
-                    // }
-                    $resp['trans_id'] = $dataPurchase->transaction_id;
-                    $resp['bundle_name'] = $dataPackage->name;
-                    $resp['amountToPay'] = $dataPackage->amount;
-                    $resp['phone'] = $dataPurchase->phone;
-                    $resp['email'] = $dataPurchase->email;
-                }
-            }
+            $data['transaction_id'] = $this->utility->generateTransactionID(2);
+            $data['status'] = 1;
+            $data['commission'] = 0;
+            $data['payment_method'] = 'Awaiting payment';
+            $data['amount'] = $servicePackage->amount;
+            $data['payment_ref'] = 'Awaiting payment';
+            $data['amount_paid'] = 0.00;
+            $dataPurchase = \App\DataTransaction::create($data);
+            return [
+                'status'   =>  true,
+                'amount'   =>  $servicePackage->amount
+            ];
         }
-        return $this->utility->response($status, $field_name, $resp);
     }
 
     public function getBundles($networkID) {
         $bundles = \App\DataBundle::where('service_id', $networkID)->orderBy('amount', 'asc')->get();
         if(count($bundles) > 0) {
             return response()->json([
-                'status'    =>  '00',
+                'status'    =>  true,
                 'message'   =>  'Successful',
                 'bundles'   =>  $bundles
             ]);
         }
         return response()->json([
-            'status'    =>  -1,
+            'status'    =>  false,
             'message'   =>  "Unknown network ID"
         ]);
     }

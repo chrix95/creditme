@@ -6,15 +6,18 @@ use \App\EntryPoint;
 use Illuminate\Http\Request;
 use App\Http\Controllers\UtilityController;
 use \App\Http\Controllers\Apis\AirtimeController;
+use \App\Http\Controllers\Apis\DataController;
 
 class EntryController extends Controller
 {
     public $utility;
     public $airtime;
+    public $data;
     
-    public function __construct(UtilityController $utility, AirtimeController $airtime) {
+    public function __construct(UtilityController $utility, AirtimeController $airtime, DataController $data) {
         $this->utility = $utility;
         $this->airtime = $airtime;
+        $this->data = $data;
     }
 
     public function airtimeEntry (Request $request) {
@@ -42,7 +45,7 @@ class EntryController extends Controller
         if (count($data['payload']) === 0) {
             return response()->json([
                 'status'    =>  false,
-                'message'   =>  "Invalid phone numbers provided"
+                'message'   =>  "Phone numbers not provided"
             ]);
         }
 
@@ -63,6 +66,7 @@ class EntryController extends Controller
         $entryPoint->total_amount = $transaction_sum;
         $entryPoint->convenience_fee = $convenience_fee;
         $entryPoint->reference = $reference;
+        $entryPoint->service = 'airtime';
         $entryPoint->platform = $data['platform'];
         $entryPoint->transaction_count = count($data['payload']);
         $entryPoint->status = 'Initiated';
@@ -188,7 +192,7 @@ class EntryController extends Controller
         $bundles = \App\DataBundle::where('service_id', $networkID)->orderBy('amount', 'asc')->get();
         if(count($bundles) > 0) {
             return response()->json([
-                'status'    =>  ture,
+                'status'    =>  true,
                 'message'   =>  'Successful',
                 'bundles'   =>  $bundles
             ]);
@@ -196,6 +200,86 @@ class EntryController extends Controller
         return response()->json([
             'status'    =>  false,
             'message'   =>  "Unknown network ID"
+        ]);
+    }
+
+    public function dataEntry (Request $request) {
+        $data = array(
+            'phone'    =>  $request->phone,
+            'payload'  =>  $request->payload, // [{ network, phone, amount }, ..., {}]
+            'platform' =>  $request->platform,
+            'passcode' =>  $request->passcode
+        );
+
+        $validator = \Validator::make($data, [
+            'phone'     =>  'required|digits:11',
+            'payload'   =>  'required',
+            'platform'  =>  'required|string',
+            'passcode'  =>  'required|string'
+        ]);
+
+        if($validator->fails()) {
+            return response()->json([
+                'status'    =>  false,
+                'message'   =>  $validator->errors()->first()
+            ]);
+        }
+
+        if (count($data['payload']) === 0) {
+            return response()->json([
+                'status'    =>  false,
+                'message'   =>  "Data numbers are not provided"
+            ]);
+        }
+
+        if ($this->utility->verifyAPIPasscode($data['phone']) !== $data['passcode']) {
+            return response()->json([
+                'status'    =>  false,
+                'message'   =>  'Unknown request sent'
+            ]);
+        }
+
+        // Generate unique reference using time and rand
+        $reference = time() . rand(10*45, 100*98);
+        // Save each transaction and get the sum
+        $transaction_sum = 0;
+        foreach($data['payload'] as $item) {
+            $payload = array(
+                'phone'             =>  $item['phone'] ?? NULL,
+                'service_id'        =>  $item['service_id'] ?? NULL,
+                'data_bundles_id'   =>  $item['data_bundles_id'] ?? NULL,
+                'platform'          =>  $data['platform'],
+                'reference'         =>  $reference
+            );
+            $response = $this->data->registerAttempt($payload);
+            if ($response['status'] == false) {
+                return response()->json([
+                    'status'    => false,
+                    'message'   =>  $response['message']
+                ]);
+            }
+            $transaction_sum = (float)$transaction_sum + (float)$response['amount'];
+        }
+        $convenience_fee = $transaction_sum >= 2500 ? ($transaction_sum * (1.5/100)) + 100 : ($transaction_sum * (1.5/100));
+
+        $entryPoint = new EntryPoint();
+        $entryPoint->phone_number = $data['phone'];
+        $entryPoint->total_amount = $transaction_sum;
+        $entryPoint->convenience_fee = $convenience_fee;
+        $entryPoint->reference = $reference;
+        $entryPoint->platform = $data['platform'];
+        $entryPoint->service = 'data';
+        $entryPoint->transaction_count = count($data['payload']);
+        $entryPoint->status = 'Initiated';
+        $entryPoint->save();
+
+        return response()->json([
+            'status'    =>  true,
+            'message'   =>  "Successful",
+            'transaction_ref'   =>  $entryPoint->reference,
+            'transaction_count'   =>  $entryPoint->transaction_count,
+            'convenience_fee'   =>  number_format($convenience_fee, 2),
+            'total_amount'   =>  $transaction_sum
         ]);
     }
 

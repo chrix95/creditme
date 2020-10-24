@@ -52,6 +52,10 @@ Route::prefix('v1')->group(function() {
                 'uses'  =>  'EntryController@getBundles',
                 'as'    =>  'data.entry.bundles'
             ]);
+            Route::post('verify', [
+                'uses'  =>  'EntryController@dataEntry',
+                'as'    =>  'data.entry.register'
+            ]);
         });
     });
     // hashing testing

@@ -13,7 +13,8 @@ class EntryPoint extends Model
         'reference', 
         'payment_reference', 
         'payment_method', 
-        'platform', 
+        'platform',
+        'service',
         'transaction_count', 
         'status'
     ];

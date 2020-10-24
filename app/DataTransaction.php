@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class DataTransaction extends Model
 {
     protected $fillable = [
-        'transaction_id', 'status', 'phone', 'email', 'amount', 'amount_paid', 'commission', 'payment_method', 'payment_ref', 'platform', 'user_id', 'service_id', 'data_bundles_id'
+        'transaction_id', 'entry_points_id', 'status', 'phone', 'email', 'amount', 'amount_paid', 'commission', 'payment_method', 'payment_ref', 'platform', 'user_id', 'service_id', 'data_bundles_id'
     ];
 
     protected $with = [

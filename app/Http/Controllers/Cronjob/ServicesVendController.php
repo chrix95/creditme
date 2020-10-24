@@ -17,7 +17,7 @@ class ServicesVendController extends Controller
         $this->airtime = $airtime;
     }
 
-    public function processAirtimeTransactions () {
+    public function processAirtimeTransactions (Request $request) {
         $transactions = EntryPoint::where('status', 'Payment verified')->get();
         if (count($transactions) == 0) {
             return "No record to vend";
@@ -33,10 +33,8 @@ class ServicesVendController extends Controller
                 );
                 $response = $this->airtime->request($payload);
                 if ($response['status'] == false) {
-                    $transaction->status = $response['message'];
-                    $transaction->save();
                     \Log::info("Something went wrong while vending");
-                    \Log::info($response['message']);
+                    \Log::info("Failed transactions");
                     \Log::info($value->transaction_id);
                 }
             }
